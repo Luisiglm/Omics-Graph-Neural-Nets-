@@ -15,4 +15,5 @@ Here we provide an implementation of graph neural networks for multi-omics data 
 Graph attention networks. In ICLR, 2018.
 - Xavier Bresson and Thomas Laurent. Residual gated graph convnets. arXiv preprint
 arXiv:1711.07553, 2017.
- 
+ ###### License
+ - MIT
