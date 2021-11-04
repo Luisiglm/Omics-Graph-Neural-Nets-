@@ -37,10 +37,11 @@ class gat(Layer):
     def call(self, inputs):
         # batch x nodes x features //inputs
         f = tf.matmul(inputs,self.w) # batch x nodes x features'
-        self_attn = tf.math.multiply(tf.matmul(f,self.ai),self.id)# it should be batch x nodes x nodes
-        other_attn = tf.math.add(tf.matmul(f,self.aj),-1e09*(1-(self.adj+self.id)))# it should be batch x nodes x nodes
-        attn = self_attn + other_attn # it should be batch x nodes x nodes
-        attn = tf.nn.softmax(attn, axis = 2) 
+        self_attn = tf.matmul(f,self.ai) # batch x nodes x nodes
+        other_attn = tf.transpose(tf.matmul(f,self.aj), perm = [0, 2, 1]) # batch x nodes x nodes
+        attn = tf.math.add(self_attn,other_attn)
+        attn = tf.math.add(attn, -1e09*(1-(self.adj+self.id)))# it should be batch x nodes x nodes
+        attn = tf.nn.softmax(attn, axis = 1) 
         # transpose this bad boy.
         f = tf.transpose(f,perm=[0, 2, 1])# batch x features' x nodes // 
         f = tf.matmul(f,attn)# message passing.
