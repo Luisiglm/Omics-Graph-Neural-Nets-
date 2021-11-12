@@ -138,7 +138,7 @@ class sign_gate(Layer):
     def call(self, inputs):
         # batch x nodes x features //inputs
         f = tf.matmul(inputs,self.w) # batch x nodes x features'
-        self_gate = tf.math.multiply(tf.matmul(f,self.ai),self.id)# it should be batch x nodes x nodes
+        self_gate = tf.math.multiply(tf.matmul(f,self.ai),(self.adj+self.id))# it should be batch x nodes x nodes
         other_gate = tf.math.multiply(tf.matmul(f,self.aj),(self.adj+self.id))# it should be batch x nodes x nodes
         gate_h = self_gate + other_gate # it should be batch x nodes x nodes
         gate_h = tf.keras.activations.tanh(gate_h) 
@@ -148,6 +148,7 @@ class sign_gate(Layer):
         f = tf.transpose(f,perm=[0, 2, 1]) # transpose again!
         f = tf.add(f, tf.matmul(inputs, self.w_2))
         return(self.activation(f), gate_h)# activate and poom!
+
 
 
 class gpool_ad(Layer):
