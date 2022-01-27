@@ -3,6 +3,75 @@ import tensorflow as tf
 from tensorflow.keras.layers import Layer
 
 
+class masked_fc(Layer):
+    def __init__(self, units, mask,activation = None):
+        super(masked_fc,self).__init__()
+        self.activation = tf.keras.activations.get(activation)
+        self.units = units
+        self.mask = tf.cast(mask, dtype ='float32')
+    def build(self, input_shape):
+        w_init = tf.random_normal_initializer()
+        self.w = tf.Variable(name = "kernel",
+                             initial_value = w_init(shape = (input_shape[2],self.units),
+                             dtype = "float32"),
+                             trainable = True)
+        b_init = tf.random_normal_initializer()
+        self.b = tf.Variable(name = "bias",
+                             initial_value = b_init(shape = (self.units,), dtype = "float32"),
+                             trainable = True)
+        super().build(input_shape)
+    def call(self,inputs):
+        inpts = tf.math.multiply(inputs,self.mask)# zero out the variables we aren't using. 
+        return(self.activation(tf.matmul(inpts, self.w)+self.b))
+
+
+class mgat(Layer):
+    """ Graph Attention Layer adapted to genomic data.
+        Takes as input a tf float 32 object of shape batch x genes x features
+        Initialization Args:
+            adj: a gene x gene numpy array
+            units: the number of features to obtain.
+            activation: a keras activation function.
+        Parameters:
+            w: a features x gat.units  tf variable .
+            ai: a gat.units x genes tf variable that corresponds to the self attention parameter.
+            aj: a gat.units x genes tf variable that is the attention to adjacent nodes parameter.
+    """
+    def __init__(self,adj,units, activation = None):
+        super(gat, self).__init__()
+        self.id = tf.cast(np.identity(adj.shape[1]), dtype = "float32")
+        self.adj = tf.cast(adj, dtype ='float32')
+        self.activation = tf.keras.activations.get(activation)
+        self.units = units
+        self.nodes = adj.shape[1]
+    def build(self, input_shape):
+        w_init = tf.keras.initializers.GlorotNormal(seed=None)
+        self.w = tf.Variable(name = "weight",
+                             initial_value = w_init(shape = (input_shape[2],self.units), dtype = "float32"),
+                             trainable = True)
+        self.ai = tf.Variable(name = "self_attn",
+                             initial_value = w_init(shape = (self.units,self.nodes), dtype = "float32"),
+                             trainable = True)
+        self.aj = tf.Variable(name = "other_attn",
+                             initial_value = w_init(shape = (self.units,self.nodes), dtype = "float32"),
+                             trainable = True)
+        super().build(input_shape)
+    def call(self, inputs):
+        # batch x nodes x features //inputs
+        h = tf.matmul(inputs,self.w) # batch x nodes x features'
+        self_attn = tf.matmul(h,self.ai) # batch x nodes x nodes
+        other_attn = tf.transpose(tf.matmul(h,self.aj), perm = [0, 2, 1]) # batch x nodes x nodes
+        attn = tf.math.add(self_attn,other_attn)
+        attn = tf.math.add(attn, -1e09*(1-(self.adj+self.id)))# it should be batch x nodes x nodes
+        attn = tf.nn.softmax(attn, axis = 1) 
+        # transpose this bad boy.
+        f = tf.transpose(h,perm=[0, 2, 1])# batch x features' x nodes // 
+        f = tf.matmul(f,attn)# message passing.
+        f = tf.transpose(f,perm=[0, 2, 1]) # transpose again!
+        f = tf.math.multiply(f,h) # elementwise multiply by the original features. 
+        return(self.activation(f), attn)# activate and poom!
+
+    
 class gat(Layer):
     """ Graph Attention Layer adapted to genomic data.
         Takes as input a tf float 32 object of shape batch x genes x features
