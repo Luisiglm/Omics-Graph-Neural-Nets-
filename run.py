@@ -1,10 +1,71 @@
 # Script to Run the Experiments
 
+import re
 import os
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Layer
+import Preprocess
+import layers
+import models
+import survival_definitions
+
+# read gene names.
+file_loc = 'F:\\genes_sans_bars.txt'
+lineList = [line.rstrip('\n') for line in open(file_loc)]
+names = list()
+for i in range(len(lineList)):
+    div = re.split(' ', lineList[i])
+    names.append(div[0])
+
+# read pathways
+
+di = 'F:\\Pathways\\'
+files_pways =  os.listdir(di)
+
+paths_list = []
+
+adj = np.zeros((len(names),len(names)))
+
+pgenes = []
+posgenes = []
+
+for i in files_pways:
+    adj_ = [line.rstrip('\n') for line in open('F:\\Pathways\\'+i)]
+    for j in range(len(adj_)):
+        div = re.split('\t', adj_[j])
+        if (names.count(div[0])>0) and (names.count(div[1])>0):
+            pos_i = names.index(div[0])
+            pos_j = names.index(div[1])
+            if pgenes.count(div[0])==0:
+                pgenes.append(div[0])
+                posgenes.append(pos_i)
+            if pgenes.count(div[1])==0:
+                pgenes.append(div[1])
+                posgenes.append(pos_j)
+            if div[2]=='inh':
+                w = -1.0
+            else:
+                w = 1
+            adj[pos_i,pos_j] = w
+            #adj[pos_j,pos_i] = 1
+
+
+#sort posgenes.
+            
+posgenes_sorted = posgenes.copy()
+posgenes_sorted.sort()
+
+adj_pways = adj[posgenes_sorted,:]
+adj_pways = adj_pways[:,posgenes_sorted]
+
+# reorder pgenes according to posgenes.
+pgenes_sort = []
+for i in range(len(posgenes_sorted)):
+    idx = posgenes_sorted[i]
+    idx_2 = posgenes.index(idx)
+    pgenes_sort.append(pgenes[idx_2])
 
 di = 'F:\\Datasets Firehose\\'
 folders = list()
@@ -22,188 +83,178 @@ for i in folders:
     a = re.search("gdac", i)
     if (a == None):
         folders_keep.append(i)
-
 # pop the first object
 
 folders_keep.pop(0)
 
+# select major cancer types.
 
-tp_idxs = read_mut_top_idxs('F:\\')
-for i in range(len(tp_idxs)):
-    tp_idxs[i] = tp_idxs[i]-1
+#maj_can = [1,2,5,13,14,15,17,18,19,21,24,25,27,31,33] # deleted 22
 
+maj_can = [1,2,3,5,9,13,14,15,16,17,18,19,21,24,27,31,33]
+# do a for loop and use exp_mut_surv function to read the data.
 
-# First for loop to read the mutation data. 
-for i in range(len(folders_keep)):
-    print(folders_keep[i])
-    pos_mat = read_num_array(folders_keep[i],'pos_mat.txt')
-    mut_type = read_num_array(folders_keep[i],'mut_types.txt')
-    mut_mat = read_num_array(folders_keep[i],'mut_mat.txt')
-    ref_file  = folders_keep[i]+'\\'+'ref_allele.txt'
-    ref_al = [(line.strip()).split() for line in open(ref_file)]
-    tum_file  = folders_keep[i]+'\\'+'tum_allele.txt'
-    tum_al = [(line.strip()).split() for line in open(tum_file)]
-    subst = substitution(ref_al,tum_al)
-     # now let's concatenate.
-    if (i ==0):
-        mut = mut_mat + 0.
-        pos = pos_mat +0.
-        mut_t  = mut_type + 0.
-        subs = subst + 0.
+builts = []# make sure all the genome builts are correct.
+
+for i in range(len(maj_can)):
+    print(folders_keep[maj_can[i]])
+    pos_i, ns_i, all_1_i, all_2_i, vt_i, built, exp_i,age_i, drugs_i, os_i = Preprocess.exp_mut_surv(folders_keep[maj_can[i]], pgenes_sort)
+    # concatenate all mutation data in the third axis.
+    mut_i = np.concatenate((all_1_i, all_2_i),axis = 2)
+    mut_i = np.concatenate((mut_i, vt_i,), axis = 2)
+    # concatenate all datasets.
+    if i == 0:
+        mut = mut_i + 0. # copy mut_i
+        pos = pos_i + 0.
+        ns = ns_i + 0.
+        builts.append(built)# make sure all genome builts are the same.
+        exp = exp_i + 0. # copy exp_i
+        age = age_i + 0. #  copy age
+        drugs = drugs_i.copy() # copy drugs_i
+        osurv = os_i + 0. #  copy overall survival
+        cancers = np.zeros((mut.shape[0],len(maj_can)))
+        cancers[:,i] = 1.  
     else:
-        mut = np.concatenate((mut,mut_mat), axis = 0)
-        pos = np.concatenate((pos,pos_mat),axis = 0)
-        mut_t = np.concatenate((mut_t, mut_type), axis = 0)
-        subs = np.concatenate((subs,subst),axis = 0)
-
-
-# select the genes we want to  focus on!
-def read_phos_subt():
-    file_ = 'F:/phos_table.txt'
-    lineList = [line.rstrip('\n') for line in open(file_)]
-    n = len(lineList)
-    xx = list()
-    for i in range(n):
-        div = re.split(' ', lineList[i])
-        xx.append(int(div[1])-1)
-    return(xx)
-
-
-# Select the indexes of the genes we want to focus on
-
-phos_sub = read_phos_subt()
-# sort list
-phos_sub.sort() # for convenience?
-
-un_tp_idxs = uni_top_phos_sub(tp_idxs, phos_sub)
-
-
-# keep ony un_tp_idxs
-
-pos = pos[:,un_tp_idxs]
-mut = mut[:,un_tp_idxs]
-subs = subs[:,un_tp_idxs,:]
-# scale the positions.
-
-pos = pos_normal(pos)
-# encode the positions into sine and cosine terms.
-encoding = mut_encoding(pos,mut, 50)
-
-
-# for loop to read gene expression values and survival and create the cancer type matrix.
-for i in range(len(folders_keep)):
-    print(folders_keep[i])
-    exp_i = np.transpose(read_num_array(folders_keep[i], 'exp_mat.txt'))
-    exp_i = exp_i[:,un_tp_idxs]
-    surv_i = read_surv(folders_keep[i], 'death_mat.txt')
-    # now let's concatenate.
-    if (i ==0):
-        exp = exp_i + 0.
-        cancers = np.zeros((exp.shape[0],len(folders_keep)))
-        cancers[:,i] = 1
-        survs = surv_i + 0.
-    else:
-        exp = np.concatenate((exp, exp_i), axis = 0)
-        cancers_i = np.zeros((exp_i.shape[0],len(folders_keep)))
-        cancers_i[:,i] = 1
+        mut = np.concatenate((mut, mut_i), axis = 0)
+        pos = np.concatenate((pos, pos_i), axis = 0)
+        ns = np.concatenate((ns, ns_i),axis =0)
+        exp = np.concatenate((exp, exp_i),axis = 0)
+        age = np.concatenate((age, age_i),axis = 0)
+        for j in range(len(drugs_i)):
+            drugs.append(drugs_i[j])
+        osurv = np.concatenate((osurv, os_i),axis = 0)
+        cancers_i = np.zeros((mut_i.shape[0],len(maj_can)))
+        cancers_i[:,i] = 1.
         cancers = np.concatenate((cancers, cancers_i), axis = 0)
-        if survs.shape[1]!= surv_i.shape[1]:
-            # padding
-            if survs.shape[1] > surv_i.shape[1]:
-                missing = np.zeros((surv_i.shape[0],survs.shape[1]-surv_i.shape[1],2))
-                ss = np.sum(surv_i[:,:,1],axis = 1)==surv_i.shape[1]
-                missing[ss,:,1] = 1.
-                surv_i = np.concatenate((surv_i, missing), axis = 1)
-            else:
-                missing = np.zeros((survs.shape[0],surv_i.shape[1]-survs.shape[1],2))
-                ss = np.sum(survs[:,:,1],axis = 1)==survs.shape[1]
-                missing[ss,:,1] = 1.
-                survs = np.concatenate((survs, missing), axis = 1)
-        survs = np.concatenate((survs, surv_i), axis = 0)
+        builts.append(built)# make sure all genome builts are the same.
+ 
+# reshape exp.
 
-# Read the Reactome adjacency matrix.
+exp = exp.reshape((exp.shape[0],exp.shape[1],1))
+# log transform exp.
+# if there are zeros make them a small number.
+#exp[exp==0.] = 1e-5
 
-Adj_ind = read_mat_indxs('F:\\react_indxs.txt')
+#exp = np.log(exp)
 
-adj = np.zeros((20531,20531))
+# sample         
 
-for i in range(Adj_ind.shape[0]):
-    adj[Adj_ind[i,0],Adj_ind[i,1]] = 1
-    adj[Adj_ind[i,1],Adj_ind[i,0]] = 1
+n = exp.shape[0] 
 
-adj_sub = adj[:,un_tp_idxs]
-adj_sub = adj_sub[un_tp_idxs,:]
+ntrain = int(np.round(0.8*(n)))
+nval = int(np.round(0.1*(n)))
+ntest= int(np.round(0.1*(n)))
 
 
-# normalize exp.
+# set a random seed.
 
-exp = normalize(exp,1)
+np.random.seed(2021)
 
-# select the most commonly diagnosed cancer types.
-
-maj_can = [1,2,5,13,14,15,17,18,19,21,22,24,25,27,31,33]
-
-cancers_maj = cancers[:,maj_can]
-
-# add an extra dimension to gene expression. 
-exp = np.reshape(exp, (exp.shape[0], exp.shape[1],1))
-
-x = np.concatenate((exp,encoding), axis = 2)
-
-x = np.concatenate((x,subs), axis = 2)
-
-x_sub = x[np.sum(cancers_maj,axis=1)>0,:]
-
-cancers_m = cancers_maj[np.sum(cancers_maj,axis=1)>0,:]
-
-ntrain = int(np.round(0.8*(x_sub.shape[0])))
-nval = int(np.round(0.1*(x_sub.shape[0])))
-ntest= int(np.round(0.1*(x_sub.shape[0])))
-
-n = x_sub.shape[0]
 reshuffle_sub = np.random.choice(n, size = n, replace = False)
 
 
 train = reshuffle_sub[0:ntrain]
 val = reshuffle_sub[ntrain+1:(ntrain+nval)]
 test = reshuffle_sub[(ntrain+nval+1):n]
+    
+# now we will encode the positions
+pos_train, min_max = Preprocess.pos_normal(pos[train,:])
+ns_train = ns[train,:]
 
-xs_train = x_sub[train,:,:]
-xs_val = x_sub[val,:,:]
+ns_train = ns_train.reshape((ns_train.shape[0],ns_train.shape[1],1))
 
-can_train = cancers_m[train,:]
-
-gt = gat_model([xs_train.shape[1],xs_train.shape[2]],adj_sub,'relu',can_train.shape[1],units = 100, act_out = 'softmax')
-opt = tf.keras.optimizers.Adamax(learning_rate=0.01)
-gt.compile(optimizer = opt, loss= 'categorical_crossentropy', metrics = 'accuracy')
-gt.fit(xs_train, can_train, epochs= 500)
-
-can_val = cancers_m[val,:]
-gt.evaluate(xs_val, can_val)
+encode_train = Preprocess.mut_encoding(pos_train, 50)
 
 
-gte = gate_model([xs_train.shape[1],xs_train.shape[2]],adj_sub,'relu',can_train.shape[1],units = 100, act_out = 'softmax')
-opt = tf.keras.optimizers.Adamax(learning_rate=0.01)
-gte.compile(optimizer = opt, loss= 'categorical_crossentropy', metrics = 'accuracy')
-gte.fit(xs_train, can_train, epochs= 500)
+mut_train = mut[train,:,:]
 
-can_val = cancers_m[val,:]
-gte.evaluate(xs_val, can_val)
+xs_train = np.concatenate((encode_train,mut_train), axis = 2)
+
+xs_train = np.concatenate((xs_train, ns_train),axis = 2)
+
+exp_train = Preprocess.normalize(exp[train,:,:],axis = 1)
+
+xs_train = np.concatenate((xs_train,exp_train), axis = 2)
+
+can_train = cancers[train,:]
+
+file_loc = 'F:\\Outputs_pathways.txt'
+lineList = [line.rstrip('\n') for line in open(file_loc)]
+mask = np.zeros((len(posgenes),1))
+for i in range(len(lineList)):
+    div = lineList[i]
+    if pgenes_sort.count(div)>0:
+        mask[pgenes_sort.index(div),0] = 1.
 
 
-sgte = sign_gate_model([xs_train.shape[1],xs_train.shape[2]],adj_sub,'relu',can_train.shape[1],units = 100, act_out = 'softmax')
-opt = tf.keras.optimizers.Adamax(learning_rate=0.01)
-sgte.compile(optimizer = opt, loss= 'categorical_crossentropy', metrics = 'accuracy')
-sgte.fit(xs_train, can_train, epochs= 500)
-
-can_val = cancers_m[val,:]
-sgte.evaluate(xs_val, can_val)
+# classify cancers using expression data alone.
 
 
-sgte = sign_gate_attn_over([xs_train.shape[1],xs_train.shape[2]],adj_sub,'relu',can_train.shape[1],units = 100, act_out = 'softmax')
-opt = tf.keras.optimizers.Adamax(learning_rate=0.01)
-sgte.compile(optimizer = opt, loss= 'categorical_crossentropy', metrics = 'accuracy')
-sgte.fit(xs_train, can_train, epochs= 500)
 
-can_val = cancers_m[val,:]
-sgte.evaluate(xs_val, can_val)
+gt_cl = models.gat_k_model_msk([xs_train.shape[1],xs_train.shape[2]],adj_pways,'relu',can_train.shape[1],mask,hops = 2,units = 100, act_out = 'softmax')
+opt = tf.keras.optimizers.SGD(learning_rate=0.1, momentum = 0.01, nesterov = True)
+gt_cl.compile(optimizer = opt, loss= 'categorical_crossentropy', metrics = 'accuracy')
+gt_cl.fit(xs_train, can_train, epochs= 100)
+
+pos_val = Preprocess.pos_normal_val(pos[val,:], min_max)
+
+ns_val = ns[val,:]
+
+encode_val = Preprocess.mut_encoding(pos_val, 50)
+
+mut_val = mut[val,:,:]
+
+xs_val = np.concatenate((encode_val,mut_val), axis = 2)
+
+ns_val = ns_val.reshape((ns_val.shape[0],ns_val.shape[1],1))
+
+xs_val = np.concatenate((xs_val,ns_val), axis = 2)
+
+exp_val = Preprocess.normalize(exp[val,:,:],axis = 1)
+
+xs_val = np.concatenate((xs_val,exp_val), axis = 2)
+
+can_val = cancers[val,:]
+
+gt_cl.evaluate(xs_val, can_val)
+
+f = gt_cl.layers[0](xs_val)
+f, at = gt_cl.layers[1](f)
+at = at.numpy()
+
+BRAF_i = pgenes_sort.index('BRAF')
+KRAS_i = pgenes_sort.index('KRAS')
+RAF1_i = pgenes_sort.index('RAF1')
+
+BRAF_V600e = np.where(pos[val,BRAF_i] == 140453136)[0]
+## BRAF mutant
+np.mean(at[BRAF_V600e,KRAS_i,BRAF_i])
+
+## BRAF WT
+BRAF_WT = np.where(pos[val,BRAF_i] == 0)[0]
+KRAS_WT = np.where(pos[val,KRAS_i] == 0)[0]
+KRAS_mut = np.where(pos[val,KRAS_i] != 0)[0]
+
+np.mean(at[BRAF_WT,KRAS_i,BRAF_i])
+
+## KRAS Mutant
+import scipy.stats
+
+scipy.stats.ttest_ind(at[BRAF_WT,KRAS_i,BRAF_i],at[BRAF_V600e,KRAS_i,BRAF_i])
+
+np.mean(at[KRAS_WT,KRAS_i,BRAF_i])
+np.mean(at[KRAS_mut,KRAS_i,BRAF_i])
+
+scipy.stats.ttest_ind(at[KRAS_WT,KRAS_i,BRAF_i],at[KRAS_mut,KRAS_i,BRAF_i])
+
+
+np.var(at[np.where(ns_val[:,BRAF_i]==1)[0],KRAS_i,BRAF_i])
+##KRAS mutant
+np.mean(at[np.where(ns_val[:,KRAS_i]==1)[0],KRAS_i,BRAF_i])
+np.var(at[np.where(ns_val[:,KRAS_i]==1)[0],KRAS_i,BRAF_i])
+## KRAS and BRAF WT
+np.mean(at[np.where(ns_val[:,KRAS_i]+ns_val[:,BRAF_i]==0)[0],KRAS_i,BRAF_i])
+np.var(at[np.where(ns_val[:,KRAS_i]+ns_val[:,BRAF_i]==0)[0],KRAS_i,BRAF_i])
+## BRAF mutant
+np.mean(at[np.where(ns_val[:,BRAF_i]==1)[0],BRAF_i,RAF1_i])
+np.var(at[np.where(ns_val[:,BRAF_i]==1[0]),BRAF_i,RAF1_i])
