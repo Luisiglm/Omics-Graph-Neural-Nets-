@@ -26,11 +26,6 @@ class PreprocessTest(unittest.TestCase):
         actual = [158388792, 1, 1, 1, 1, '37']
         self.assertEqual(expected,actual)
 
-    def test_find_mut_folder(self):
-        expected = Preprocess.find_exp_folder(os.getcwd()+'//'+'testdata')
-        actual = 'ACC.rnaseqv2__illuminahiseq_rnaseqv2__unc_edu__Level_3__RSEM_genes_normalized__data.data.txt'
-        self.assertEqual(expected, actual)
-
     def test_exp_prep(self):
         pats = ['TCGA-OR-A5J2']
         res = Preprocess.exp_prep(['A1BG'], pats,os.getcwd()+'//'+'testdata//')
