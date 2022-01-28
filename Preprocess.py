@@ -34,7 +34,7 @@ def exp_mut_surv(folder_i, genes):
     pats, pos_i, ns_i, all_1_i, all_2_i, vt_i, built = mut_prep(folder_i, genes)
     print('muts done')
     # now with the expression data.
-    exp_i, pat_exp_match, pat_input_match = exp_prep(genes, pats)
+    exp_i, pat_exp_match, pat_input_match = exp_prep(genes, pats,folder_i)
     print('RNASeq done')
     # now let's do the clinical data.
     age_i, drugs_i, os_i = clin_prep(folder_i, pats)
