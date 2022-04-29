@@ -3,47 +3,61 @@ import tensorflow as tf
 import layers
 from tensorflow.keras.layers import Layer
 
-def gat_k_model(input_shape,  adj,activation, out_shape, units = 10,hops = 5,depth = 2, act_out = 'sigmoid', units_last = 50):
+def gcn_modelfc_2inputs(input_shape, input_shape_2,  adj,activation, out_shape, units = 10,depth = 2, act_out = 'sigmoid', units_last = 50):
     inputs = tf.keras.Input(shape = input_shape, dtype ="float32" )
-    x, attn = layers.gat_k(adj,units,hops,activation)(inputs)
+    x = layers.fully_3d( units, None)(inputs)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.activations.relu(x)
+    x = tf.keras.layers.Dropout(0.2)(x)
+    x2 = tf.keras.Input(shape = input_shape_2, dtype ="float32" )
+    x = tf.concat((x,x2),axis = 2)   
+    x  = layers.gpool(units,adj,None)(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.activations.relu(x)
+    x = tf.keras.layers.Dropout(0.2)(x)
+    for i in range(depth):
+        x = layers.gpool (units,adj,None)(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.activations.relu(x)
+        x = tf.keras.layers.Dropout(0.2)(x)
+    x = tf.keras.layers.Flatten()(x)
+    outputs = tf.keras.layers.Dense(out_shape,kernel_initializer = tf.keras.initializers.GlorotNormal(), activation=act_out)(x)
+    return(tf.keras.Model([inputs,x2],outputs))
+
+def gat_modelfc_3inputs(input_shape, input_shape_2, input_shape_3,  adj,out_shape,units = 10,depth = 2, act_out = 'sigmoid'):
+    inputs = tf.keras.Input(shape = input_shape, dtype ="float32" )
+    x = fully_3d( units, None)(inputs)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.activations.relu(x)
+    x = tf.keras.layers.Dropout(0.2)(x)
+    x2 = tf.keras.Input(shape = input_shape_2, dtype ="float32" )
+    x = tf.concat((x,x2),axis = 2)   
+    x, attn = layers.gat(adj,units,None)(x)
+    x = tf.keras.layers.Dropout(0.2)(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.activations.relu(x)
     #x = tf.keras.layers.Dropout(0.2)(x)
     for i in range(depth):
-        x = layers.gpool_k(units,hops,activation)(x, attn)
-        #x = tf.keras.layers.Dropout(0.2)(x)
+        x = layers.gpool_ad(units,None)(x, attn)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.activations.relu(x)
+        x = tf.keras.layers.Dropout(0.2)(x)
     x = tf.keras.layers.Flatten()(x)
-    x = tf.keras.layers.Dense(units_last,kernel_initializer = tf.keras.initializers.GlorotNormal(), activation=activation)(x)
+    x3 = tf.keras.Input(shape = input_shape_3, dtype ="float32" )
+    outputs_1 = tf.keras.layers.Dense(out_shape,kernel_initializer = tf.keras.initializers.GlorotNormal(), activation=act_out)(x)
+    outputs_2 = tf.keras.layers.Dense(out_shape,kernel_initializer = tf.keras.initializers.GlorotNormal(), activation=act_out)(x3)
+    outputs = outputs_1 + outputs_2
+    return(tf.keras.Model([inputs,x2,x3],outputs))
+
+def mlp_local_modelfc(input_shape,  paths,activation, out_shape, units = 10,depth = 2, act_out = 'sigmoid'):
+    inputs = tf.keras.Input(shape = input_shape, dtype ="float32" )
+    x = layers.fully_3d( units, activation)(inputs)
+    x = path_fc(pahts,units,activation)(x)
+    x = tf.keras.layers.Flatten()(x)
+    for i in range(depth):
+        x = tf.keras.layers.Dense(units_last,kernel_initializer = tf.keras.initializers.GlorotNormal(), activation=activation)(x)
     outputs = tf.keras.layers.Dense(out_shape,kernel_initializer = tf.keras.initializers.GlorotNormal(), activation=act_out)(x)
     return(tf.keras.Model(inputs,outputs))
 
 
 
-def gat_k_model_msk(input_shape,  adj,activation, out_shape,mask, units = 10,hops = 5,depth = 2, act_out = 'sigmoid', units_last = 50):
-    inputs = tf.keras.Input(shape = input_shape, dtype ="float32" )
-    x, attn = layers.gat_k(adj,units,hops,activation)(inputs)
-    x = tf.keras.layers.Dropout(0.2)(x)
-    for i in range(depth):
-        x = layers.gpool_k(units,hops,activation)(x, attn)
-        x = tf.keras.layers.Dropout(0.2)(x)
-    x = layers.masked_fc(units,mask)(x)
-    x = tf.keras.layers.Flatten()(x)
-    x = tf.keras.layers.Dense(units_last,kernel_initializer = tf.keras.initializers.GlorotNormal(), activation=activation)(x)
-    outputs = tf.keras.layers.Dense(out_shape,kernel_initializer = tf.keras.initializers.GlorotNormal(), activation=act_out)(x)
-    return(tf.keras.Model(inputs,outputs))
-
-
-def gat_k_model_msk_2inputs(input_shape, input_shape_2, adj,activation, out_shape,mask, units = 10,hops = 5,depth = 2, depth2 = 2, units_2 = 10,act_out = 'sigmoid'):
-    inputs = tf.keras.Input(shape = input_shape, dtype ="float32" )
-    x, attn = layers.gat_k(adj,units,hops,activation)(inputs)
-    x = tf.keras.layers.Dropout(0.2)(x)
-    for i in range(depth):
-        x = layers.gpool_k(units,hops,activation)(x, attn)
-        x = tf.keras.layers.Dropout(0.2)(x)
-    x = layers.masked_fc(units,mask)(x)
-    x = tf.keras.layers.Flatten()(x)
-    inputs_2 = tf.keras.Input(shape = input_shape_2, dtype ="float32" )
-    x2 = tf.keras.layers.Dense(units, activation,kernel_initializer = tf.keras.initializers.RandomNormal(0,1e-6))(inputs_2)
-    for i in range(depth2):
-        x2 = tf.keras.layers.Dense(units_2,activation,kernel_initializer = tf.keras.initializers.RandomNormal(0,1e-6))(x2)
-    x = tf.concat((x,x2),axis = 1)    
-    outputs = tf.keras.layers.Dense(out_shape,kernel_initializer = tf.keras.initializers.GlorotNormal(), activation=act_out)(x)
-    return(tf.keras.Model([inputs, inputs_2],outputs))
