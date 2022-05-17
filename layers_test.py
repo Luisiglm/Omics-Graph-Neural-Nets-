@@ -3,7 +3,7 @@
 import tensorflow as tf
 import numpy as np
 
-import layers
+import layers as layers
 
 class LayersTest(tf.test.TestCase):
 
@@ -36,7 +36,7 @@ class LayersTest(tf.test.TestCase):
             temp_h = tf.matmul(temp_h, temp_att)
             expected_1 = tf.transpose(temp_h, [0,2,1])
             self.assertAllClose(expected_1,actual_1)
-            
+
 
 
     def test_gpool(self):
@@ -57,7 +57,7 @@ class LayersTest(tf.test.TestCase):
             temp = tf.matmul(temp,adj)
             expected = tf.transpose(temp, [0,2,1]) + tf.matmul(sim_data,gpool_lay.w1)
             self.assertAllClose(expected,actual)
-            
+
 
     def test_gpool_ad(self):
         with self.test_session():
@@ -75,9 +75,9 @@ class LayersTest(tf.test.TestCase):
             temp = tf.matmul(sim_data,gpool_lay.w)
             temp = tf.transpose(temp, [0,2,1])
             temp = tf.matmul(temp,adj)
-            expected = tf.transpose(temp, [0,2,1]) 
+            expected = tf.transpose(temp, [0,2,1])
             self.assertAllClose(expected,actual)
-            
+
 
     def test_gate(self):
         with self.test_session():
@@ -110,7 +110,7 @@ class LayersTest(tf.test.TestCase):
             expected_1 = temp_h + tf.matmul(sim_data,gate_lay.w_2)
             self.assertAllClose(expected_1,actual_1)
 
-            
+
 
 
     def test_gcn(self):
@@ -133,14 +133,14 @@ class LayersTest(tf.test.TestCase):
             L = np.eye(3) - np.matmul(np.matmul(D,adj),D)
             # check that the resulting Laplacian is correct.
             self.assertAllClose(L,gcn_lay.L)
-            # let's check the message passing.          
+            # let's check the message passing.
             temp_h1 =  tf.matmul(sim_data,gcn_lay.w)
             temp_h1 = tf.transpose(temp_h1, [0,2,1])
             temp_h1 = tf.matmul(temp_h1, L)
             expected = tf.transpose(temp_h1, [0,2,1])
             self.assertAllClose(expected,actual)
 
-    
+
     def test_fully_3d(self):
         with self.test_session():
             # make some simple dataset.
@@ -154,9 +154,10 @@ class LayersTest(tf.test.TestCase):
             # check the dimensions are ok.
             self.assertEqual(expected.shape,[1,3,1])
             self.assertAllClose(expected,actual)
-            
-            
+
+
 
 
 if __name__ == '__main__':
     tf.test.main()
+
