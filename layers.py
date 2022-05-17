@@ -41,9 +41,9 @@ class gat(Layer):
         other_attn = tf.transpose(tf.matmul(f,self.aj), perm = [0, 2, 1]) # batch x nodes x nodes
         attn = tf.math.add(self_attn,other_attn)
         attn = tf.math.add(attn, -1e09*(1-(self.adj+self.id)))# it should be batch x nodes x nodes
-        attn = tf.nn.softmax(attn, axis = 1) 
+        attn = tf.nn.softmax(attn, axis = 1)
         # transpose this bad boy.
-        f = tf.transpose(f,perm=[0, 2, 1])# batch x features' x nodes // 
+        f = tf.transpose(f,perm=[0, 2, 1])# batch x features' x nodes //
         f = tf.matmul(f,attn)# message passing.
         f = tf.transpose(f,perm=[0, 2, 1]) # transpose again!
         return(self.activation(f), attn)# activate and poom!
@@ -94,9 +94,9 @@ class gate(Layer):
         other_attn = tf.transpose(tf.matmul(f,self.aj), perm = [0, 2, 1]) # batch x nodes x nodes
         attn = tf.math.add(self_attn,other_attn)
         attn = tf.math.add(attn, -1e09*(1-(self.adj)))# it should be batch x nodes x nodes
-        gate_h = tf.keras.activations.sigmoid(attn+self.b_a) 
+        gate_h = tf.keras.activations.sigmoid(attn+self.b_a)
         # transpose this bad boy.
-        f = tf.transpose(f,perm=[0, 2, 1])# batch x features' x nodes // 
+        f = tf.transpose(f,perm=[0, 2, 1])# batch x features' x nodes //
         f = tf.matmul(f,gate_h)# message passing.
         f = tf.transpose(f,perm=[0, 2, 1]) # transpose again!
         f = tf.add(f, tf.matmul(inputs, self.w_2))
@@ -134,7 +134,7 @@ class gcn(Layer):
         # batch x nodes x features //inputs
         f = tf.matmul(inputs,self.w) # batch x nodes x features'
         # transpose this bad boy.
-        f = tf.transpose(f,perm=[0, 2, 1])# batch x features' x nodes // 
+        f = tf.transpose(f,perm=[0, 2, 1])# batch x features' x nodes //
         f = tf.matmul(f,self.L)# message passing.
         f = tf.transpose(f,perm=[0, 2, 1]) # transpose again!
         return(self.activation(f))# activate and poom!
@@ -165,9 +165,9 @@ class gpool(Layer):
                              trainable = True)
         super().build(input_shape)
     def call(self, inputs):
-        # batch x nodes x features //inputs  
+        # batch x nodes x features //inputs
         f = tf.matmul(inputs,self.w1) # batch x nodes x features'
-        h = tf.transpose(inputs,perm=[0, 2, 1])# batch x features' x nodes // 
+        h = tf.transpose(inputs,perm=[0, 2, 1])# batch x features' x nodes //
         h = tf.matmul(h,self.adj)# message passing.
         h = tf.transpose(h,perm=[0, 2, 1]) # transpose again!
         f = tf.add(tf.matmul(h, self.w2),f)
@@ -199,7 +199,7 @@ class gpool_ad(Layer):
         # batch x nodes x features //inputs
         f = tf.matmul(inputs,self.w) # batch x nodes x features'
         # transpose this bad boy.
-        f = tf.transpose(f,perm=[0, 2, 1])# batch x features' x nodes // 
+        f = tf.transpose(f,perm=[0, 2, 1])# batch x features' x nodes //
         f = tf.matmul(f,adj)# message passing.
         f = tf.transpose(f,perm=[0, 2, 1]) # transpose again!
         return(self.activation(f))# activate and poom!
@@ -233,19 +233,15 @@ class gated_pool_ad(Layer):
         # batch x nodes x features //inputs
         f = tf.matmul(inputs,self.w) # batch x nodes x features'
         # transpose this bad boy.
-        f = tf.transpose(f,perm=[0, 2, 1])# batch x features' x nodes // 
+        f = tf.transpose(f,perm=[0, 2, 1])# batch x features' x nodes //
         f = tf.matmul(f,adj)# message passing.
         f = tf.transpose(f,perm=[0, 2, 1]) # transpose again!
         f = tf.add(f, tf.matmul(inputs, self.w_2))
         return(self.activation(f))# activate and poom!
-    
-    
+
+
 
 class fully_3d(Layer):
-    """ Fully Connected 3d Tensor Layer.
-        Takes as input a tf float 32 object of shape batch x genes x features.
-        If adds an embedidng for each gene's features. 
-    """
     def __init__(self, units, activation = None):
         super(fully_3d,self).__init__()
         self.activation = tf.keras.activations.get(activation)
@@ -266,15 +262,55 @@ class fully_3d(Layer):
                              trainable = True)
         super().build(input_shape)
     def call(self,inputs):
-        inpts = tf.math.add(inputs,self.w_g)#+self.b_g# zero out the variables we aren't using. 
+        inpts = tf.math.add(inputs,self.w_g)#+self.b_g# zero out the variables we aren't using.
         return(self.activation(tf.matmul(inpts, self.w)+self.b))
 
-    
-class fully_3d_ne(Layer):
-     """ Fully Connected 3d Tensor Layer.
-        Takes as input a tf float 32 object of shape batch x genes x features.
-        Unlike, fully_3d, it does not add an embedidng for each gene's features. 
+
+class path_fc(Layer):
+    """ Local MLP Layer.
+        Takes as input a tf float 32 object of shape batch x genes x features
+        Initialization Args:
+            adj: a gene x gene numpy array
+            units: the number of features to obtain.
+            activation: a keras activation function.
+        Parameters:
+            w: a features x gat.units  tf variable.
     """
+    def __init__(self,paths,units, activation = None):
+        super(path_fc, self).__init__()
+        self.activation = tf.keras.activations.get(activation)
+        self.units = units
+        self.paths = tf.cast(paths, dtype = "float32")
+        self.no_paths = paths.shape[1]
+    def build(self, input_shape):
+        w_init = tf.random_normal_initializer()
+        self.w = tf.Variable(name = "kernel",
+                             initial_value = w_init(shape = (input_shape[2],self.units),
+                             dtype = "float32"),
+                             trainable = True)
+        self.w_paths = tf.Variable(name = "kernel",
+                             initial_value = w_init(shape = (input_shape[1],self.no_paths),
+                             dtype = "float32"),
+                             trainable = True)
+        b_init = tf.random_normal_initializer()
+        self.b = tf.Variable(name = "bias",
+                             initial_value = b_init(shape = (self.units,), dtype = "float32"),
+                             trainable = True)
+        super().build(input_shape)
+    def call(self, inputs):
+        # batch x nodes x features //inputs
+        h = tf.matmul(inputs,self.w)
+        h = h + self.b
+        h = tf.transpose(h, perm = [0, 2, 1])
+        w2 = tf.math.multiply(self.paths,self.w_paths)
+        f = tf.matmul(h,w2)
+        # transpose this bad boy.
+        f = tf.transpose(f, perm = [0,2,1])
+        return(self.activation(f))# activate and poom!
+
+
+
+class fully_3d_ne(Layer):
     def __init__(self, units, activation = None):
         super(fully_3d_ne,self).__init__()
         self.activation = tf.keras.activations.get(activation)
