@@ -149,7 +149,7 @@ class gpool(Layer):
             activation: a keras activation function.
             w: a features x gat.units  tf variable.
     """
-    def __init__(self,units, adj,activation = None):
+    def __init__(self, adj, units, activation = None):
         super(gpool, self).__init__()
         self.activation = tf.keras.activations.get(activation)
         self.units = units
