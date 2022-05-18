@@ -50,7 +50,7 @@ class LayersTest(tf.test.TestCase):
             # simulate some simple data with all ones.
             sim_data = tf.cast(np.ones((1,3,1)), 'float32')
             # make a gpool_k layer object.
-            gpool_lay = layers.gpool(1,adj)
+            gpool_lay = layers.gpool(adj,1)
             actual = gpool_lay(sim_data)
             temp = tf.matmul(sim_data,gpool_lay.w2)
             temp = tf.transpose(temp, [0,2,1])
