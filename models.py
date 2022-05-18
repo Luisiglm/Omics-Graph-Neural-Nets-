@@ -106,12 +106,12 @@ def gpool_2(input_shape, input_shape_2, adj, out_shape, units=10, depth=2, act_o
     x = tf.keras.layers.Dropout(0.2)(x)
     x2 = tf.keras.Input(shape=input_shape_2, dtype="float32")
     x = tf.concat((x, x2), axis=2)
-    x = layers.gpool(units, adj, None)(x)
+    x = layers.gpool(adj, units, None)(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.activations.relu(x)
     x = tf.keras.layers.Dropout(0.2)(x)
     for i in range(depth):
-        x = layers.gpool(units, adj, None)(x)
+        x = layers.gpool(adj, units,None)(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.activations.relu(x)
         x = tf.keras.layers.Dropout(0.2)(x)
@@ -142,12 +142,12 @@ def gcn_2(input_shape, input_shape_2, adj,  out_shape, units=10, depth=2, act_ou
     x = tf.keras.layers.Dropout(0.2)(x)
     x2 = tf.keras.Input(shape=input_shape_2, dtype="float32")
     x = tf.concat((x, x2), axis=2)
-    x = layers.gcn(units, adj, None)(x)
+    x = layers.gcn(adj, units, None)(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.activations.relu(x)
     x = tf.keras.layers.Dropout(0.2)(x)
     for i in range(depth):
-        x = layers.gcn(units, adj, None)(x)
+        x = layers.gcn(adj, units, None)(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.activations.relu(x)
         x = tf.keras.layers.Dropout(0.2)(x)
@@ -187,10 +187,9 @@ def gat_3(input_shape, input_shape_2, input_shape_3, adj, out_shape, units=10, d
     x2 = tf.keras.Input(shape=input_shape_2, dtype="float32")
     x = tf.concat((x, x2), axis=2)
     x, attn = layers.gat(adj, units, None)(x)
-    x = tf.keras.layers.Dropout(0.2)(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.activations.relu(x)
-    # x = tf.keras.layers.Dropout(0.2)(x)
+    x = tf.keras.layers.Dropout(0.2)(x)
     for i in range(depth):
         x = layers.gpool_ad(units, None)(x, attn)
         x = tf.keras.layers.BatchNormalization()(x)
@@ -199,14 +198,16 @@ def gat_3(input_shape, input_shape_2, input_shape_3, adj, out_shape, units=10, d
     x = tf.keras.layers.Flatten()(x)
     x3 = tf.keras.Input(shape=input_shape_3, dtype="float32")
     outputs_1 = tf.keras.layers.Dense(out_shape, kernel_initializer=tf.keras.initializers.GlorotNormal(),
-                                      activation=act_out)(x)
+                                      activation=None)(x)
     outputs_2 = tf.keras.layers.Dense(out_shape, kernel_initializer=tf.keras.initializers.GlorotNormal(),
-                                      activation=act_out)(x3)
-    outputs = outputs_1 + outputs_2
+                                      activation=None)(x3)
+    x = tf.concat((outputs_1,outputs_2),axis = 1)
+    outputs = tf.keras.layers.Dense(out_shape, kernel_initializer=tf.keras.initializers.GlorotNormal(),
+                                    activation=act_out)(x)
     return (tf.keras.Model([inputs, x2, x3], outputs))
 
 
-def gpool_3(input_shape, input_shape_2,input_shape_3, adj, activation, out_shape, units=10, depth=2, act_out='sigmoid'):
+def gpool_3(input_shape, input_shape_2,input_shape_3, adj, out_shape, units=10, depth=2, act_out='sigmoid'):
     """ Graph Neural Network Model adapted to genomic data.
               It takes three inputs, the first will be processed with a linear layer. (e.g. mutation data)
               The last input will be combined at the end with the graph message passing. (e.g. clinical data)
@@ -229,22 +230,24 @@ def gpool_3(input_shape, input_shape_2,input_shape_3, adj, activation, out_shape
     x = tf.keras.layers.Dropout(0.2)(x)
     x2 = tf.keras.Input(shape=input_shape_2, dtype="float32")
     x = tf.concat((x, x2), axis=2)
-    x = layers.gpool(units, adj, None)(x)
+    x = layers.gpool(adj, units,  None)(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.activations.relu(x)
     x = tf.keras.layers.Dropout(0.2)(x)
     for i in range(depth):
-        x = layers.gpool(units, adj, None)(x)
+        x = layers.gpool(adj, units,  None)(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.activations.relu(x)
         x = tf.keras.layers.Dropout(0.2)(x)
-        x = tf.keras.layers.Flatten()(x)
+    x = tf.keras.layers.Flatten()(x)
     x3 = tf.keras.Input(shape=input_shape_3, dtype="float32")
     outputs_1 = tf.keras.layers.Dense(out_shape, kernel_initializer=tf.keras.initializers.GlorotNormal(),
-                                      activation=act_out)(x)
+                                      activation=None)(x)
     outputs_2 = tf.keras.layers.Dense(out_shape, kernel_initializer=tf.keras.initializers.GlorotNormal(),
-                                      activation=act_out)(x3)
-    outputs = outputs_1 + outputs_2
+                                      activation=None)(x3)
+    x = tf.concat((outputs_1, outputs_2), axis=1)
+    outputs = tf.keras.layers.Dense(out_shape, kernel_initializer=tf.keras.initializers.GlorotNormal(),
+                                    activation=act_out)(x)
     return (tf.keras.Model([inputs, x2, x3], outputs))
 
 
@@ -280,12 +283,15 @@ def gate_3(input_shape, input_shape_2,input_shape_3, adj, out_shape, units=10, d
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.activations.relu(x)
         x = tf.keras.layers.Dropout(0.2)(x)
+    x = tf.keras.layers.Flatten()(x)
     x3 = tf.keras.Input(shape=input_shape_3, dtype="float32")
     outputs_1 = tf.keras.layers.Dense(out_shape, kernel_initializer=tf.keras.initializers.GlorotNormal(),
-                                      activation=act_out)(x)
+                                      activation=None)(x)
     outputs_2 = tf.keras.layers.Dense(out_shape, kernel_initializer=tf.keras.initializers.GlorotNormal(),
-                                      activation=act_out)(x3)
-    outputs = outputs_1 + outputs_2
+                                      activation=None)(x3)
+    x = tf.concat((outputs_1, outputs_2), axis=1)
+    outputs = tf.keras.layers.Dense(out_shape, kernel_initializer=tf.keras.initializers.GlorotNormal(),
+                                    activation=act_out)(x)
     return (tf.keras.Model([inputs, x2, x3], outputs))
 
 
@@ -312,22 +318,24 @@ def gcn_3(input_shape, input_shape_2, input_shape_3, adj, out_shape, units=10, d
     x = tf.keras.layers.Dropout(0.2)(x)
     x2 = tf.keras.Input(shape=input_shape_2, dtype="float32")
     x = tf.concat((x, x2), axis=2)
-    x = layers.gcn(units, adj, None)(x)
+    x = layers.gcn(adj, units, None)(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.activations.relu(x)
     x = tf.keras.layers.Dropout(0.2)(x)
     for i in range(depth):
-        x = layers.gcn(units, adj, None)(x)
+        x = layers.gcn(adj, units, None)(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.activations.relu(x)
         x = tf.keras.layers.Dropout(0.2)(x)
-        x = tf.keras.layers.Flatten()(x)
+    x = tf.keras.layers.Flatten()(x)
     x3 = tf.keras.Input(shape=input_shape_3, dtype="float32")
     outputs_1 = tf.keras.layers.Dense(out_shape, kernel_initializer=tf.keras.initializers.GlorotNormal(),
-                                      activation=act_out)(x)
+                                      activation=None)(x)
     outputs_2 = tf.keras.layers.Dense(out_shape, kernel_initializer=tf.keras.initializers.GlorotNormal(),
-                                      activation=act_out)(x3)
-    outputs = outputs_1 + outputs_2
+                                      activation=None)(x3)
+    x = tf.concat((outputs_1, outputs_2), axis=1)
+    outputs = tf.keras.layers.Dense(out_shape, kernel_initializer=tf.keras.initializers.GlorotNormal(),
+                                    activation=act_out)(x)
     return (tf.keras.Model([inputs, x2, x3], outputs))
 
 
@@ -427,12 +435,12 @@ def gpool_2_node(input_shape, input_shape_2, adj,  out_shape, units=10, depth=2,
     x = tf.keras.layers.Dropout(0.2)(x)
     x2 = tf.keras.Input(shape=input_shape_2, dtype="float32")
     x = tf.concat((x, x2), axis=2)
-    x = layers.gpool(units, adj, None)(x)
+    x = layers.gpool(adj, units, None)(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.activations.relu(x)
     x = tf.keras.layers.Dropout(0.2)(x)
     for i in range(depth):
-        x = layers.gpool(units, adj, None)(x)
+        x = layers.gpool(adj, units, None)(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.activations.relu(x)
         x = tf.keras.layers.Dropout(0.2)(x)
@@ -463,12 +471,12 @@ def gcn_2_node(input_shape, input_shape_2, adj,  out_shape, units=10, depth=2, a
     x = tf.keras.layers.Dropout(0.2)(x)
     x2 = tf.keras.Input(shape=input_shape_2, dtype="float32")
     x = tf.concat((x, x2), axis=2)
-    x = layers.gcn(units, adj, None)(x)
+    x = layers.gcn(adj, units, None)(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.activations.relu(x)
     x = tf.keras.layers.Dropout(0.2)(x)
     for i in range(depth):
-        x = layers.gcn(units, adj, None)(x)
+        x = layers.gcn(adj, units, None)(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.activations.relu(x)
         x = tf.keras.layers.Dropout(0.2)(x)
@@ -564,7 +572,3 @@ def mlp(input_shape, activation, out_shape, units=10, depth=2, act_out='sigmoid'
     outputs = tf.keras.layers.Dense(out_shape, kernel_initializer=tf.keras.initializers.GlorotNormal(),
                                     activation=act_out)(x)
     return (tf.keras.Model(inputs, outputs))
-
-
-
-
