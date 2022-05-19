@@ -444,9 +444,8 @@ def gpool_2_node(input_shape, input_shape_2, adj,  out_shape, units=10, depth=2,
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.activations.relu(x)
         x = tf.keras.layers.Dropout(0.2)(x)
-    x = tf.keras.layers.Flatten()(x)
-    outputs = tf.keras.layers.Dense(out_shape, kernel_initializer=tf.keras.initializers.GlorotNormal(),
-                                    activation=act_out)(x)
+    x = layers.gpool(adj, out_shape, act_out)(x)
+    outputs = tf.keras.layers.Flatten()(x)
     return (tf.keras.Model([inputs, x2], outputs))
 
 
@@ -480,9 +479,9 @@ def gcn_2_node(input_shape, input_shape_2, adj,  out_shape, units=10, depth=2, a
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.activations.relu(x)
         x = tf.keras.layers.Dropout(0.2)(x)
-    x = tf.keras.layers.Flatten()(x)
-    outputs = tf.keras.layers.Dense(out_shape, kernel_initializer=tf.keras.initializers.GlorotNormal(),
-                                    activation=act_out)(x)
+    x = layers.gcn(adj, out_shape, act_out)(x)
+    outputs = tf.keras.layers.Flatten()(x)
+    return (tf.keras.Model([inputs, x2], outputs))
     return (tf.keras.Model([inputs, x2], outputs))
 
 
